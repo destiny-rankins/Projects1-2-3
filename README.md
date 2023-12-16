@@ -1,4 +1,11 @@
-# Project3
+# Project 1
+This project is an exploratory data analysis on the smoking cessation. The externalizing, substance abuse and internalizing behaviors of 
+parent and children are examined by smoking status. The different smoking statuses include parents that smoked during three trimesters of 
+pregnancy, smoked postpartum, and were exposed to smoke. A R mardown file is included.
+
+
+
+# Project 3
 This project includes a transportability anysis where a logistic regression model was developed on the source population Framingham study
 data to predict the probability of experiencing the outcome of cardiovascular disease and evaluated in a new target population (NHANES 
 data). The NHANES data sample did not include the observed outcome variable for cardiovascular disease. The Framingham study data was split 
