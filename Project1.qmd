@@ -1,0 +1,460 @@
+---
+title: “External and Internal Behaviors of Children That Experienced Early Smoke Exposure: An Exploratory Data Analysis,”
+author: "Destiny Rankins"
+format: pdf
+editor: visual
+---
+
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+# load libraries
+library(naniar)
+library(ggpubr)
+library(hms)
+library(knitr)
+library(dbplyr)
+library(rmarkdown)
+library(tidyverse)
+library(kableExtra)
+library(gtsummary)
+library(mice)
+library(stats)
+library(reshape2)
+library(tibble)
+library(corrplot)
+```
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+# load libraries
+library(naniar)
+library(ggpubr)
+library(hms)
+library(knitr)
+library(dbplyr)
+library(rmarkdown)
+library(tidyverse)
+library(kableExtra)
+library(gtsummary)
+library(mice)
+library(stats)
+library(reshape2)
+library(tibble)
+library(corrplot)
+```
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+# load the data 
+project1 <- read.csv("C:/Users/desti/Downloads/project1.csv", header=TRUE)
+
+# change "yes = 1" and "no = 2" to 1 or 2 and blank values to NA
+project1[,] <- lapply(project1[,], function(x) ifelse(x == "", NA, x))
+project1[,22:28] <- lapply(project1[,22:28], function(x) ifelse(x == "1=Yes", 1, x))
+project1[,22:28] <- lapply(project1[,22:28], function(x) ifelse(x == "2=No", 0, x))
+
+# change char variables to factor in the data set
+project1 <- project1 %>%
+  #mutate_if(is.character, integer) %>%
+  mutate_if(is.factor, integer)
+
+# change the mom_numcig value from  "2 black and milds a day" to 2 in the data frame
+project1$mom_numcig[project1$mom_numcig == "2 black and miles a day"] <- 2
+
+# change the mom_numcig value from "none" to 0 in the data frame
+project1$mom_numcig[project1$mom_numcig == "None"] <- 0
+
+# Replace the number of cigarettes mother smoked to NA from 44989
+project1[26,21]<-NA 
+
+# Replace "20-25" value for cigarettes mother smoked to average of 20-25 cigarettes
+project1[37,21]<- ((20+25)/2) 
+
+#Remove comma to standardize to rest of values
+project1$income<- as.character(project1$income)
+project1$income<- ifelse(project1$income == "250,000", "250000", project1$income )
+
+#Change 0 values to NA for Swan scores in data 
+#new_df$swan_inattentive<- ifelse(new_df$swan_inattentive == 0,NA,new_df$swan_inattentive)
+#new_df$swan_hyperactive<- ifelse(new_df$swan_hyperactive == 0,NA,new_df$swan_hyperactive)
+
+#Change number of cigs  and income into numeric values 
+project1$mom_numcig<-as.numeric(project1$mom_numcig)
+project1$income<-as.numeric(project1$income)
+
+```
+
+Overall 77% of the data is missing. For each trimester, the percentage of missing data significant increases by about 10% from the first trimester (16 week) to the second trimester (22 weeks). Then it decreases about another 5% from the second trimester to the third trimester (32 weeks). There is also missingness due to the "Have you ever tried or experimented with a cigarette?" question.If the child answered "no" then the subsequent question about the quantity in the last 30 days would have NA values. This is also the case for whether or not the child has experimented with e-cigarettes, vapes, marijuana, and alcohol. In addition, when we sort the data by sex, we see a pattern where large quantites of data is missing for eight participants in the data set.
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+# missing data summary
+misstable <- miss_var_summary(project1) %>%
+  filter(pct_miss > 25) %>%
+  summarise(
+   Variable = variable, Number_Missing=n_miss  , Percentage_Missing=round(pct_miss,1))
+
+# kable table for missing data
+misstable %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 1. Missing Data Summary",
+col.names=linebreak(c("Variable", "Number_Missing",
+                      "Percentage_Missing")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+
+
+p1 <- gg_miss_var(show_pct = TRUE, project1 %>%
+             select(mom_smoke_16wk:mom_smoke_32wk))
+
+p2 <- gg_miss_var(show_pct = TRUE, project1 %>%
+             select(mom_smoke_pp1:mom_smoke_pp6mo,smoke_exposure_6mo:smoke_exposure_5yr))  
+
+ggarrange(p1, p2, ncol = 2, nrow = 1)
+
+
+
+```
+
+The demographics of this study include responses from the parents and the children. The average age of the parent in this data set is 38 and 98% of the parent participants are identify as female. 32% of the parent participants are Hispanic and 53% selected White when describing their race. 39% of the child participants described their race as White and 51% identified as Hispanic. There were no parent participants that identified as Black or Asian and this is the same for Asian children however, 31% of the children identified as Black. For education level, 37% of the parent participants have some college and 24% have a four year degree. For employment status, 54% of the parent participants have a full time paying job and 29% are unemployed.
+
+When observing the parents' substance, we that most of the participants responded "never" to the use of illegal drugs and non-medical drug use in the last six months during the survey. 54% answered "never" to using tobacco products while, 28% responded that they used tobacco products daily or almost daily within the last six months during the survey. 54% of the parents also responded "never" to the alcohol use.   
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+# summary statistics
+
+# select demographic variables from the data set
+demographics <- project1 %>%
+  	select(c(page, psex, paian, pasian, pblack, pedu, pethnic, plang,
+  	         pnhpi, prace_other, pwhite, language,employ, income,tage, taian,
+  	         tasian,tblack,tethnic,tnhpi,trace_other, tsex,twhite))
+
+# table summary of demographics
+demographics %>%
+tbl_summary(type = all_continuous() ~ "continuous2",
+statistic = all_continuous() ~ c("{mean}",
+"{min}, {max}"),
+missing_text = "(Missing)",
+label = list(page ~ "Parent Age", 
+             psex ~ "Parent Sex",
+             paian ~ "Parent American Indian/Alaska Native",
+             pasian ~ "Parent Asian",
+             pblack ~ "Parent Black",
+             pedu ~ "Parent Education", 
+             pethnic ~ "Parent Ethnicity",
+             plang ~ "Parent Language",
+             pnhpi ~ "Parent Native Hawaiian or Pacific Islander",
+             prace_other ~ "Parent Race Other",
+             pwhite ~ "Child Language (spoken at home)", 
+             language ~ "Parent Employment Status",
+             income ~ "Parent Income",
+             tage ~ "Child Age",
+             taian ~ "Child American Indian/Alaska Native",
+             tasian ~ "Child Asian", 
+             tblack ~ "Child Black",
+             tethnic ~ "Child Ethnicity",
+             tnhpi ~ "Child Native Hawaiian or Pacific Islander",
+             trace_other ~ "Child Race Other",
+             tsex ~ "Child Sex",
+             tblack ~ "Child White")) %>%
+modify_caption("Table 2. Overall Demographics for Parents and Children")
+
+# select columns pertaining to the parents' substance use
+parents_substance <- project1 %>%
+  select(c(mom_numcig, nidaill, nidaalc, nidapres, nidatob))
+
+# table summary of parents substance use
+parents_substance %>%
+tbl_summary(type = all_continuous() ~ "continuous2",
+statistic = all_continuous() ~ c("{mean}",
+"{min}, {max}"),
+missing_text = "(Missing\\)", 
+label = list(mom_numcig ~ "Number of Cigarettes Parent Smokes", 
+             nidaill ~ "Parent Illegal Drug Use",
+             nidaalc ~ "Parent Alcohol Consumption",
+             nidapres ~ "Prescription Drug Use (non-medical reasons)",
+             nidatob ~ "Uses Tobacco Products")) %>%
+modify_caption("Table 3. Summary Statistics of Parent Substance Use")
+
+
+  
+```
+
+
+Based on whether or not the parent smoked during each trimester, we observe the average scores from a 10-item scale that measure respondents' tendency to regulate their emotions. The scale ranges from 1 to 5 where 1 is strongly disagree and 5 is strongly agree. The average cognitive repraisal score appears to be highest for parents that smoked during the first trimester (baseline to 16 weeks). In contrast,the average cogitive suppresive score is highest for mothers that smoked during the second trimester (22 weeks). The average sum of responses on the brief problem monitor where parents and children report how true their responses to the items relating to internalizing self problems, we observe the parents' average score on the child are higher (parent that smoked during the first and third trimester) than the child's score on themselves (parent that smoked during the second trimester).
+
+Similarly, we observe the average scores based on externalizing factors(attention-deficit/hyperactivity disorder (ADHD), conduct disorder, and Substance use. The average scores on the SWAN rating scale questions that indicate whether a child is likely to have ADHD-Hyperactive/Impulsive or ADHD-Inactive appear to be higher for parents that smoked during pregnancy and the highest for parents that smoked during the third trimester. When observing the average sum of responses on the brief problem monitor for items related to externalizing self problems, we see that the scores are lower for parent on child. This is the case for mothers that smoked during pregnancy and those that did not. A possible explanation for this could be due to the childs' responses regarding substance use where most children answered answered no to experimenting with cigarettes, e-cigarettes or vapes, marijuana, and alcohol. Most children may have answered no out of fear and most parents did not believe them.
+
+```{r, warning=TRUE, message=TRUE, echo = TRUE}
+
+# Observe the self-regulation and externalizing effects of parents that smoke 
+# during pregnancy
+
+# longer column for the smoking during pregnancy
+subst <- project1 %>%
+  pivot_longer(cols = mom_smoke_16wk:mom_smoke_32wk, names_to = "trimester")
+head(subst)
+
+# average self-regulation outcomes from parents that smoked during pregnancy
+selfregsmokingduringpregnancy <- subst %>%
+group_by(trimester, value) %>%
+summarise(N = length(parent_id),
+Mean_INT = round(mean(bpm_int, na.rm = TRUE), 3),
+Mean_INT_P = round(mean(bpm_int_p, na.rm = TRUE), 3),
+Mean_ERQ_COG = round(mean(erq_cog, na.rm = TRUE), 3),
+Mean_ERQ_EXP = round(mean(erq_exp, na.rm = TRUE), 3))
+
+# kable table for averages on self-regulation forparents that smoked during pregnancy
+selfregsmokingduringpregnancy %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 4. Self-Regulation Averages from Parents That Smoked During Pregnancy",
+col.names=linebreak(c("Trimester","Smoked (Yes or No)", "N",
+                      "Mean Child Internalizing Score", 
+                      "Mean Parent Internalizing Score on Child", 
+                      "Mean Child Cognitive Repraisal", "Mean Child Expressive Suppression")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+
+# average externalizing outcomes from parents that smoked during pregnancy
+externalsmokingduringpregnancy <- subst %>%
+group_by(trimester, value) %>%
+summarise(
+N = length(parent_id),
+Mean_ATT = round(mean(bpm_att, na.rm = TRUE), 3),
+Mean_EXT = round(mean(bpm_ext, na.rm = TRUE), 3),
+Mean_ATT_P = round(mean(bpm_att_p, na.rm = TRUE), 3),
+Mean_EXT_P = round(mean(bpm_ext_p, na.rm = TRUE), 3),
+Cig_Ever = round(mean(cig_ever, na.rm = TRUE), 3),
+E_Cig_Ever = round(mean(e_cig_ever, na.rm = TRUE), 3),
+MJ_Ever = round(mean(mj_ever, na.rm = TRUE), 3),
+Alc_Ever = round(mean(alc_ever, na.rm = TRUE), 3),
+swan_Hyperactive = round(mean(swan_hyperactive, na.rm = TRUE), 3),
+swan_Inattentive = round(mean(swan_inattentive, na.rm = TRUE), 3))
+
+# kable table for averages on externalizing outcomes 
+externalsmokingduringpregnancy %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 5. Self-Regulation Averages from Parents That Smoked During Pregnancy",
+col.names=linebreak(c("Trimester","Yes or No", "N",
+                      "Mean Child Attention Score", "Mean Child Externalizing Score", 
+                      "Mean Parent Attention Score on Child", "Mean Parent Externalizing Score on Child", 
+                      "Mean Child Tried a Cigarette", "Avg. Tried E-Cigs",
+                      "Avg. Tried Marijuana", "Avg. Tried Alcohol",
+                       "Mean ADHD Hyperactive", "Mean ADHD Inattentive")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+
+```
+
+As we seen before, there is alot of missing data for the first two postpartum visits. Here, we see that most parents answered no to smoking during the twelfth week and sixth month postpartum visits. This makes sense as it is expected that most parents would not want to smoke around their newborn children. Furthermore, we could make an assumption that some of parents were breastfeeding and chose as abstain from cigarette smoking due. However, for the six month postpartum visit, we see that the average children's cognitive repraisal and suppression scores appear to be higher for parents that smoked than parents that did not smoke. This suggests that children of parents who smoked during this period have a higher tendency to regulate their emotion in these two ways. For the externalizing behaviors, specifically ADHD, children whose parents answered yes to smoking during sixth month postpartum visit are more likely to have inattentive type ADHD. In contrast, those parents that answered no are more likely to have hyperactive/impulsive type ADHD.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE}
+
+# Observe the self-regulation and externalizing effects of parents smoking postpartum
+
+# longer column for smoking postpartum
+subst2 <- project1 %>%
+  pivot_longer(cols = mom_smoke_pp1:mom_smoke_pp6mo, names_to = "postpartum") 
+
+# average self-regulation outcomes from parent smoking postpartum
+selfregsmokingpostpartum <- subst2 %>%
+group_by(postpartum, value) %>%
+summarise(N = length(parent_id),
+Mean_INT = round(mean(bpm_int, na.rm = TRUE), 3),
+Mean_INT_P = round(mean(bpm_int_p, na.rm = TRUE), 3),
+Mean_ERQ_COG = round(mean(erq_cog, na.rm = TRUE), 3),
+Mean_ERQ_EXP = round(mean(erq_exp, na.rm = TRUE), 3))
+
+# kable table for self-regulation averages from parent smoking postpartum
+selfregsmokingpostpartum %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 6. Self-Regulation Averages from Parent That Smoke Postpartum",
+col.names=linebreak(c("Smoking Postpartum","Yes or No", "N",
+                      "Mean Child Internalizing Score", 
+                      "Mean Parent Internalizing Score on Child",
+                      "Mean Child Cognitive Repraisal", "Mean Child Expressive Suppression")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+
+# average externalizing outcomes from parent smoking postpartum
+externalsmokingpostpartum <- subst2 %>%
+group_by(postpartum, value) %>%
+summarise(
+N = length(parent_id),
+Mean_ATT = round(mean(bpm_att, na.rm = TRUE), 3),
+Mean_EXT = round(mean(bpm_ext, na.rm = TRUE), 3),
+Mean_ATT_P = round(mean(bpm_att_p, na.rm = TRUE), 3),
+Mean_EXT_P = round(mean(bpm_ext_p, na.rm = TRUE), 3),
+Cig_Ever = round(mean(cig_ever, na.rm = TRUE), 3),
+E_Cig_Ever = round(mean(e_cig_ever, na.rm = TRUE), 3),
+MJ_Ever = round(mean(mj_ever, na.rm = TRUE), 3),
+Alc_Ever = round(mean(alc_ever, na.rm = TRUE), 3),
+swan_Hyperactive = round(mean(swan_hyperactive, na.rm = TRUE), 3),
+swan_Inattentive = round(mean(swan_inattentive, na.rm = TRUE), 3))
+
+# kable table for externalizing averages from parent smoking postpartum
+externalsmokingpostpartum %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 7. Externalizing Averages from Parents That Smoke Postpartum",
+col.names=linebreak(c("Smoking Postpartum","Yes or No", "N",
+                      "Mean Child Attention Score", "Mean Child Externalizing Score", 
+                      "Mean Parent Attention Score on Child", "Mean Parent Externalizing Score on Child", 
+                      "Mean Child Tried a Cigarette", "Avg. Tried E-Cigs",
+                      "Avg. Tried Marijuana", "Avg. Tried Alcohol",
+                       "Mean ADHD Hyperactive", "Mean ADHD Inattentive")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+```
+Here we see that most parents responded no to being exposed to smoke for the first five years. The child's average cognitive repraisal and suppressive scores are higher for parents that were exposed to smoke than those that were not. In the previous table, we observed these are lower for parents that smoked during pregnancy and parents that answered yes to smoking from 0 to 6 months postpartum. For the externalizing behavior, the average sum of responses on the SWAN rating scale question for both types of ADHD re higher for parents that were exposed to smoke during the first fiver years.
+
+```{r,warning=FALSE, message=FALSE, echo = FALSE}
+# Observe the externalizing and self-regulation effects of parent exposure to tobacco smoke 
+
+subst3 <- project1 %>%
+  pivot_longer(cols = smoke_exposure_6mo:smoke_exposure_5yr, names_to = "etspostpartum") 
+
+# self regulate outcome from exposure to tobacco smoking postpartum
+selfregexposuretosmokingpostpartum <- subst3 %>%
+group_by(etspostpartum, value) %>%
+summarise(
+N = length(parent_id),
+Mean_INT = round(mean(bpm_int, na.rm = TRUE), 3),
+Mean_INT_P = round(mean(bpm_int_p, na.rm = TRUE), 3),
+Mean_ERQ_COG = round(mean(erq_cog, na.rm = TRUE), 3),
+Mean_ERQ_EXP = round(mean(erq_exp, na.rm = TRUE), 3),)
+
+selfregexposuretosmokingpostpartum %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 8. Average Self-Regulation Outcomes from Parent Exposure to Tobacco Smoke Postpartum",
+col.names=linebreak(c("ETS Post Partum","Yes or No", "N",
+                      "Mean Child Internalizing Score", 
+                      "Mean Parent Internalizing Score on Child",
+                      "Mean Child Cognitive Repraisal", "Mean Child Expressive Suppression")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+
+# external outcome from exposure to smoking postpartum
+externalexposuretosmokingpostpartum <- subst3 %>%
+group_by(etspostpartum, value) %>%
+summarise(
+N = length(parent_id),
+Mean_ATT = round(mean(bpm_att, na.rm = TRUE), 3),
+Mean_EXT = round(mean(bpm_ext, na.rm = TRUE), 3),
+Mean_ATT_P = round(mean(bpm_att_p, na.rm = TRUE), 3),
+Mean_EXT_P = round(mean(bpm_ext_p, na.rm = TRUE), 3),
+Cig_Ever = round(mean(cig_ever, na.rm = TRUE), 3),
+E_Cig_Ever = round(mean(e_cig_ever, na.rm = TRUE), 3),
+MJ_Ever = round(mean(mj_ever, na.rm = TRUE), 3),
+Alc_Ever = round(mean(alc_ever, na.rm = TRUE), 3),
+swan_Hyperactive = round(mean(swan_hyperactive, na.rm = TRUE), 3),
+swan_Inattentive = round(mean(swan_inattentive, na.rm = TRUE), 3))
+
+externalexposuretosmokingpostpartum %>%
+mutate_all(linebreak) %>%
+kbl(caption = "Table 9. Average External Outcomes for Parents Exposure to Tobacco Smoke Postpartum",
+col.names=linebreak(c("Exposure Tobacco Smoke","Yes or No", "N",
+                      "Mean Child Attention Score", "Mean Child Externalizing Score", 
+                      "Mean Parent Attention Score on Child", "Mean Parent Externalizing Score on Child",
+                      "Mean Child Tried a Cigarette", "Avg. Tried E Cigs",
+                      "Avg. Tried Marijuana", "Avg. Tried Alcohol",
+                       "Mean ADHD Hyperactive", "Mean ADHD Inattentive")),
+booktabs=T, escape=F, align = "c") %>%
+kable_styling(full_width = FALSE, latex_options = c('hold_position'))
+
+
+
+```
+
+AIM 2: Explore links between self-regulation at baseline and substance and externalizing at 6- and 12-month follow-ups.
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+# Observe the self-regulation and externalizing effects of parents smoking postpartum
+# longer column for smoking postpartum
+project1$smoke_exposure_6mo<-as.numeric(project1$smoke_exposure_6mo)
+project1$smoke_exposure_12mo<-as.numeric(project1$smoke_exposure_12mo)
+project1$mom_smoke_16wk<-as.numeric(project1$mom_smoke_16wk)
+project1$mom_smoke_pp1<-as.numeric(project1$mom_smoke_pp1)
+project1$mom_smoke_pp2<-as.numeric(project1$mom_smoke_pp2)
+
+# pivot longer to combine baseline, 6 month follow up, and 12 month follow up
+subst6 <- project1 %>%
+  pivot_longer(cols = c(mom_smoke_16wk, smoke_exposure_6mo,smoke_exposure_12mo), names_to = "postpartum") 
+head(subst6)
+
+# table summary of averages internalizing, externalizing, and substance us on 
+# baseline, 6 month follow up, and 12 month follow up
+subst6 %>%
+  select(postpartum, value, bpm_int, bpm_int_p,erq_cog, erq_exp, bpm_att, 
+         bpm_ext, bpm_att_p,bpm_ext_p, cig_ever, e_cig_ever, mj_ever,
+         swan_hyperactive, swan_inattentive) %>%
+  mutate(postpartum = paste("Postpartum", postpartum)) %>%
+  tbl_strata(strata = postpartum,
+            .tbl_fun =
+             ~ .x %>%
+        tbl_summary(by = value) %>%
+        add_n(),
+    statistic = all_continuous() ~ c("{mean}"),
+    missing_text = "(Missing)",
+    .header = "**{strata}**, N = {n}"
+  )%>%
+modify_caption("Table 10. Averages of Int. Ext./SU at Baseline and 6 and 12 Month Follow-Ups")
+
+# table summary of confidence intervals for internalizing, externalizing, substance 
+# baseline, 6 month follow up, and 12 month follow up
+subst6 %>%
+  select(postpartum, value, bpm_int, bpm_int_p,erq_cog, erq_exp, bpm_att, 
+         bpm_ext, bpm_att_p,bpm_ext_p, cig_ever, e_cig_ever, mj_ever,alc_ever,
+         swan_hyperactive, swan_inattentive) %>%
+  mutate(postpartum = paste("Postpartum", postpartum)) %>%
+  tbl_strata2(
+    strata = postpartum,
+    .tbl_fun =
+      ~ .x %>%
+        tbl_summary(
+          label = list(value = .y),
+          missing = "no",
+          statistic = value ~ "{p}%"
+        ) %>%
+        add_ci(pattern = "{stat} ({ci})") %>%
+        modify_header(stat_0 = "**Rate (95% CI)**") %>%
+        modify_footnote(stat_0 = NA),
+    .combine_with = "tbl_merge",
+    .quiet = TRUE
+  ) %>%
+  modify_caption("Table 11. P-Values of Int. Ext./SU at Baseline and 6 and 12 Month Follow-Ups")
+
+# table summary of p-values for internalizing, externalizing, substance 
+# baseline, 6 month follow up, and 12 month follow up
+  subst6 %>%
+  select(postpartum, value, bpm_int, bpm_int_p,erq_cog, erq_exp, bpm_att, 
+         bpm_ext, bpm_att_p,bpm_ext_p, cig_ever, e_cig_ever, mj_ever,alc_ever,
+         swan_hyperactive, swan_inattentive) %>%
+   mutate(postpartum = paste("Postpartem", postpartum)) %>%
+  tbl_strata2(
+    strata = postpartum,
+    .tbl_fun =
+      ~ .x %>%
+  tbl_summary(by = value, missing = "no") %>%
+  add_p(
+    # perform t-test for all variables
+    test = everything() ~ "t.test",
+    # assume equal variance in the t-test
+    test.args = all_tests("t.test") ~ list(var.equal = TRUE))) %>%
+  modify_caption("Table 12. Averages of Int. Ext./SU at Baseline and 6 and 12 Month Follow-Ups")
+
+# select variables to create subset of the data
+subset_variables <-project1 %>%
+            select(c("mom_smoke_16wk", "smoke_exposure_6mo","smoke_exposure_12mo",
+            "bpm_int", "bpm_int_p","erq_cog", "erq_exp", "bpm_att", "bpm_ext", 
+            "bpm_att_p","bpm_ext_p", "cig_ever","e_cig_ever", "mj_ever","alc_ever","swan_hyperactive", "swan_inattentive"))
+
+# create data frame from the selected variables
+subset_df <- as.data.frame(subset_variables)
+cplot = cor(na.omit(subset_df))
+corrplot(cplot, col = COL2('PuOr', 10),tl.col = 'black')
+
+
+```
+When observing the correlation plot, we do not see much correlation between the baseline and the internalizing factors. Similarly, there does not appear to be any correlation between the six and twelve month follow-ups and externalizing factors/substance use. However there does appear to be a moderate correlation between six month follow up and the sum of child responses on the Brief Problem Monitor on items related to externalizing problems on self. There are also moderate correlations between the baseline and the sum of parent responses on the Brief Problem Monitor on items related to externalizing  and attention problems on the child. We also see a moderate correlation between baseline and a child experimentation with marijuana use, Further the baseline and the sum of responses on SWAN Rating Scale Question that indicate whether a child is like to have ADHD, hyperactive and inattentive.
+
+\newpage
+
+# Code Appendix
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE, include=TRUE}
+```
